@@ -29,7 +29,7 @@ param(
 
 #endregion
 
-[String]$ScriptVersion = "2.3.0"
+[String]$ScriptVersion = "2.4.0"
 
 #region Functions
 function Log2File{
@@ -315,6 +315,16 @@ foreach ($DFSRServer in $reportxml.dfsReplicationReport.members.server){
 
 #region Create ScriptBlock to run on DCs
 Log2File -log $LogFile -text "Creating script block for DC checks"
+
+$TimeToCheck = 86400000
+$filterXML = @"
+<QueryList>
+  <Query Id="0" Path="Directory Service">
+    <Select Path="Directory Service">*[System[(EventID=2889) and TimeCreated[timediff(@SystemTime) &lt;= $TimeToCheck]]]</Select>
+  </Query>
+</QueryList>
+"@
+
 $SBText = @'
 $DC_HealthInfo = [ordered]@{}
 $NTDS_Parameters = Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\services\NTDS\Parameters *
@@ -336,6 +346,9 @@ $DC_HealthInfo.SysVolReplError = @(Get-Eventlog 'DFS Replication' -After (get-da
 $DC_HealthInfo.SysVolReplErrorCount = $DC_HealthInfo.SysVolReplError.Count
 $DC_HealthInfo.UnexpectedShutdown = @(Get-Eventlog 'System' -After (get-date).AddDays($using:EventlogCheckDays) -EntryType Error -ErrorAction SilentlyContinue | Where-Object {$_.EventID -eq 6008})
 $DC_HealthInfo.UnexpectedShutdownCount = $DC_HealthInfo.UnexpectedShutdown.Count
+
+$DC_HealthInfo.SimpleBinds = @(Get-WinEvent -FilterXml $using:filterXML | ForEach-Object { $client = $_.properties[0].value; $user = $_.properties[1].value ; New-Object psobject -Property @{Client=$client;User=$user} })
+$DC_HealthInfo.SimpleBindsCount = $DC_HealthInfo.SimpleBinds.Count
 $FileVersions = @{}
 foreach ($FileName in $using:CheckFiles){
     $Version = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($FileName)
@@ -407,6 +420,7 @@ foreach ($result in $results){
     $DCDiagErrSum += $result.DCDiagErr
     $SysVolReplErrorSum += $result.SysVolReplErrorCount
     $UnexpectedShutdownSum += $result.UnexpectedShutdownCount
+    $SimpleBindCount += $result.SimpleBindsCount
     $RepAdminErrSum += $result.RepAdminErr
 	if ($result.RepAdminErr){
 		$result.RepAdmin | Out-File -FilePath "$LogFilePath\$rundatestring-$($result.Computername)-repadmin.txt" -Force
@@ -430,6 +444,9 @@ foreach ($result in $results){
     if ($result.UnexpectedShutdownCount){
         $result.UnexpectedShutdown | Select-Object -Property Index,TimeGenerated,EntryType,Source,Message | Out-File -FilePath "$LogFilePath\$rundatestring-$($result.Computername)-UnexpectedShutdown.txt" -Force
         $UnexpectedShutdownList += "<li>$($result.Computername)</li>"
+    }
+    if ($result.SimpleBindsCount){
+        $result.SimpleBinds |  Export-Csv -Path "$LogFilePath\$rundatestring-$($result.Computername)-SimpleBinds.csv" -NoTypeInformation -Delimiter ';' -Force
     }
     $DSASize += $result.DSASize
     foreach($FileName in $result.CheckedFiles.Keys){
@@ -534,7 +551,13 @@ $MailBody = $MailBody.Replace("___DFSRERR___",$dfsrAdminHealth.Count)
 $MailBody = $MailBody.Replace("___DFSRERRLIST___",$DFSRErrorList)
 $MailBody = $MailBody.Replace("___ADDSERR___",$FailedServices)
 $MailBody = $MailBody.Replace("___DNSERR___",$DCDNSErrHTML)
+$MailBody = $MailBody.Replace("___LSBCOUNT___",$SimpleBindCount)
 
+switch ($SimpleBindCount){
+    {$_ -gt 100} {$MailBody = $MailBody.Replace("___LSBCOLOR___",$HTMLRed); break}
+    {$_ -gt 0} {$MailBody = $MailBody.Replace("___LSBCOLOR___",$HTMLYellow); break}
+    default {$MailBody = $MailBody.Replace("___LSBCOLOR___",$HTMLGreen)}
+}
 switch ($UnreachbleDCs.count){
     {$_ -gt 4} {$MailBody = $MailBody.Replace("___URCOLOR___",$HTMLRed); break}
     {$_ -gt 0} {$MailBody = $MailBody.Replace("___URCOLOR___",$HTMLYellow); break}
