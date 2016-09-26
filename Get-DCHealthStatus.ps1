@@ -29,11 +29,7 @@ param(
 
 #endregion
 
-<<<<<<< HEAD
-[String]$ScriptVersion = "2.4.2"
-=======
-[String]$ScriptVersion = "2.4.0"
->>>>>>> parent of 990d9f2... Add files via upload
+[String]$ScriptVersion = "2.4.3"
 
 #region Functions
 function Log2File{
@@ -341,20 +337,12 @@ $DC_HealthInfo.DSAPath = $NTDS_Parameters.'DSA Database file'
 $DC_HealthInfo.DSASize = (Get-Item $NTDS_Parameters.'DSA Database file').Length
 $DC_HealthInfo.StrictReplication = [bool][int]$NTDS_Parameters.'Strict Replication Consistency'
 $DC_HealthInfo.GCPromoComplete = [bool][int]$NTDS_Parameters.'Global Catalog Promotion Complete'
-<<<<<<< HEAD
 $DC_HealthInfo.DCDiag = dcdiag /skip:systemlog /skip:DFSREvent
-=======
-$DC_HealthInfo.DCDiag = dcdiag /skip:systemlog
->>>>>>> parent of 990d9f2... Add files via upload
 $DC_HealthInfo.DCDiagFailedTests = ($DC_HealthInfo.DCDiag | select-string -Pattern "failed test") | % { $_.ToString().Split(" ")[-1] }
 $DC_HealthInfo.RepAdmin = @(repadmin /showrepl /csv | ConvertFrom-Csv | Where-Object {$_.'Number of Failures' -gt 0})
 $DC_HealthInfo.DCDiagErr = @($DC_HealthInfo.DCDiag | Select-String -Pattern "failed test").count
 $DC_HealthInfo.RepAdminErr = $DC_HealthInfo.RepAdmin.count
-<<<<<<< HEAD
 $DC_HealthInfo.SysVolReplError = @(Get-Eventlog 'DFS Replication' -After (get-date).AddDays($using:EventlogCheckDays) -EntryType Error -ErrorAction SilentlyContinue | Where-Object {$_.EventID -ne 5002})
-=======
-$DC_HealthInfo.SysVolReplError = @(Get-Eventlog 'DFS Replication' -After (get-date).AddDays($using:EventlogCheckDays) -EntryType Error -ErrorAction SilentlyContinue)
->>>>>>> parent of 990d9f2... Add files via upload
 $DC_HealthInfo.SysVolReplErrorCount = $DC_HealthInfo.SysVolReplError.Count
 $DC_HealthInfo.UnexpectedShutdown = @(Get-Eventlog 'System' -After (get-date).AddDays($using:EventlogCheckDays) -EntryType Error -ErrorAction SilentlyContinue | Where-Object {$_.EventID -eq 6008})
 $DC_HealthInfo.UnexpectedShutdownCount = $DC_HealthInfo.UnexpectedShutdown.Count
