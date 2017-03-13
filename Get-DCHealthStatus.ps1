@@ -29,7 +29,7 @@ param(
 
 #endregion
 
-[String]$ScriptVersion = "2.4.3"
+[String]$ScriptVersion = "2.4.4"
 
 #region Functions
 function Log2File{
@@ -407,6 +407,14 @@ foreach ($DC in $DCList){
 #region Get time source of PDC
 Log2File -log $LogFile -text "Checking time configuration"
 $TimeSource = (w32tm /monitor /domain:$Domain2Check | Select-String -Pattern " PDC " -Context 2).Context.PostContext[1].Split(":")[2].Trim()
+#endregion
+
+#region Get replication summary
+
+Log2File -log $LogFile -text "Generating replication summary"
+
+repadmin /showrepl * /csv | ConvertFrom-Csv | Export-Csv -Path "$LogFilePath\$rundatestring-ReplicationSummary.csv" -NoTypeInformation -Delimiter ';' -Force
+
 #endregion
 
 Log2File -log $LogFile -text "Finished collecting information"
