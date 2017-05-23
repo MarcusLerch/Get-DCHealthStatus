@@ -29,7 +29,7 @@ param(
 
 #endregion
 
-[String]$ScriptVersion = "2.4.4"
+[String]$ScriptVersion = "2.4.5"
 
 #region Functions
 function Log2File{
@@ -241,6 +241,10 @@ foreach ($CheckFile in $configuration.ScriptConfiguration.CheckFile){
 	$CheckFiles += $CheckFile.FullName
 }
 
+[bool][int]$CheckSimpleBindEvents = $configuration.ScriptConfiguration.CheckSimpleBindEvents
+Log2File -log $LogFile -text "Read CheckSimpleBindEvents Flag"
+Log2File -log $LogFile -text "`t - $CheckSimpleBindEvents"
+
 $CheckServices = @()
 Log2File -log $LogFile -text "Reading services to check"
 foreach ($ReadService in $configuration.ScriptConfiguration.CheckService.Service){
@@ -346,9 +350,10 @@ $DC_HealthInfo.SysVolReplError = @(Get-Eventlog 'DFS Replication' -After (get-da
 $DC_HealthInfo.SysVolReplErrorCount = $DC_HealthInfo.SysVolReplError.Count
 $DC_HealthInfo.UnexpectedShutdown = @(Get-Eventlog 'System' -After (get-date).AddDays($using:EventlogCheckDays) -EntryType Error -ErrorAction SilentlyContinue | Where-Object {$_.EventID -eq 6008})
 $DC_HealthInfo.UnexpectedShutdownCount = $DC_HealthInfo.UnexpectedShutdown.Count
-
-$DC_HealthInfo.SimpleBinds = @(Get-WinEvent -FilterXml $using:filterXML | ForEach-Object { $client = $_.properties[0].value; $user = $_.properties[1].value ; New-Object psobject -Property @{Client=$client;User=$user} })
-$DC_HealthInfo.SimpleBindsCount = $DC_HealthInfo.SimpleBinds.Count
+if($using:CheckSimpleBindEvents){
+    $DC_HealthInfo.SimpleBinds = @(Get-WinEvent -FilterXml $using:filterXML | ForEach-Object { $client = $_.properties[0].value; $user = $_.properties[1].value ; New-Object psobject -Property @{Client=$client;User=$user} })
+    $DC_HealthInfo.SimpleBindsCount = $DC_HealthInfo.SimpleBinds.Count
+}
 $FileVersions = @{}
 foreach ($FileName in $using:CheckFiles){
     $Version = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($FileName)
@@ -377,7 +382,7 @@ $SB = [ScriptBlock]::Create($SBText)
 #region Find reachable DCs
 Log2File -log $LogFile -text "Reading DCs and executing script block"
 $ALDCList = New-Object System.Collections.ArrayList
-$DCList = Get-ADDomainController -Filter * -server $Domain2Check| Select-Object -ExpandProperty HostName
+$DCList = @(Get-ADDomainController -Filter * -server $Domain2Check| Select-Object -ExpandProperty HostName)
 $ALDCList.AddRange($DCList)
 Log2File -log $LogFile -text "Found the following Domain Controllers:"
 foreach ($DC in $DCList){
@@ -559,12 +564,17 @@ $MailBody = $MailBody.Replace("___DFSRERR___",$dfsrAdminHealth.Count)
 $MailBody = $MailBody.Replace("___DFSRERRLIST___",$DFSRErrorList)
 $MailBody = $MailBody.Replace("___ADDSERR___",$FailedServices)
 $MailBody = $MailBody.Replace("___DNSERR___",$DCDNSErrHTML)
+if($CheckSimpleBindEvents){
 $MailBody = $MailBody.Replace("___LSBCOUNT___",$SimpleBindCount)
-
 switch ($SimpleBindCount){
     {$_ -gt 100} {$MailBody = $MailBody.Replace("___LSBCOLOR___",$HTMLRed); break}
     {$_ -gt 0} {$MailBody = $MailBody.Replace("___LSBCOLOR___",$HTMLYellow); break}
     default {$MailBody = $MailBody.Replace("___LSBCOLOR___",$HTMLGreen)}
+}
+}
+else{
+$MailBody = $MailBody.Replace("___LSBCOUNT___","Not checked")
+$MailBody = $MailBody.Replace("___LSBCOLOR___",$HTMLGreen)
 }
 switch ($UnreachbleDCs.count){
     {$_ -gt 4} {$MailBody = $MailBody.Replace("___URCOLOR___",$HTMLRed); break}

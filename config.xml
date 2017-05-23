@@ -1,19 +1,20 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <ScriptConfiguration>
-  <Domain2Check>contoso.com</Domain2Check>
+  <Domain2Check>contoso10.com</Domain2Check>
   <EventlogCheckDays>1</EventlogCheckDays>
   <MailSettings>
-    <SendMail>1</SendMail>
-    <SMTP-Server>mail.contoso.com</SMTP-Server>
-    <Sender>ActiveDirectory@contoso.com</Sender>
+    <SendMail>0</SendMail>
+    <SMTP-Server>mail.contoso10.com</SMTP-Server>
+    <Sender>ActiveDirectory@contoso10.com</Sender>
     <Subject>DC Health Report</Subject>
     <RecipientList>
-      <Recipient>admin@contoso.com</Recipient>
+      <Recipient>admin@contoso10.com</Recipient>
     </RecipientList>
   </MailSettings>
   <CheckFile>
     <FullName>C:\Windows\System32\MyImportantComapanyTool.exe</FullName>
   </CheckFile>
+  <CheckSimpleBindEvents>0</CheckSimpleBindEvents>
   <CheckService>
     <Service>
       <ServiceName>ntds</ServiceName>
