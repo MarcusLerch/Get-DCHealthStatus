@@ -404,14 +404,14 @@ $results = @(Invoke-Command -ComputerName $DCList -ScriptBlock $SB)
 Log2File -log $LogFile -text "Starting DNS Registrations Check"
 $DNSRegistrationErrors = @()
 foreach ($DC in $DCList){
-    $DNSRegistrationErrors += Check-DNSEntries -SourceServer $DC -DNSServerAdress '172.30.0.151' | Where-Object {!($_.IsRegistered -and $_.IsCorrect)}
+    $DNSRegistrationErrors += Check-DNSEntries -SourceServer $DC | Where-Object {!($_.IsRegistered -and $_.IsCorrect)}
 }
 
 #endregion
 
 #region Get time source of PDC
 Log2File -log $LogFile -text "Checking time configuration"
-$TimeSource = (w32tm /monitor /domain:$Domain2Check | Select-String -Pattern " PDC " -Context 2).Context.PostContext[1].Split(":")[2].Trim()
+$TimeSource = (w32tm /monitor /domain:$Domain2Check | Select-String -Pattern " PDC " -Context 2).Context.PostContext[1].Split(" ")[-1].Trim()
 #endregion
 
 #region Get replication summary
