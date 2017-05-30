@@ -411,7 +411,7 @@ foreach ($DC in $DCList){
 
 #region Get time source of PDC
 Log2File -log $LogFile -text "Checking time configuration"
-$TimeSource = (w32tm /monitor /domain:$Domain2Check | Select-String -Pattern " PDC " -Context 2).Context.PostContext[1].Split(" ")[-1].Trim()
+$TimeSource = (w32tm /monitor /domain:$Domain2Check | Select-String -Pattern " PDC " -Context 3).Context.PostContext[2].Split(":")[1].Trim()
 #endregion
 
 #region Get replication summary
