@@ -29,7 +29,7 @@ param(
 
 #endregion
 
-[String]$ScriptVersion = "2.4.6"
+[String]$ScriptVersion = "2.5.0"
 
 #region Functions
 function Log2File{
@@ -373,6 +373,7 @@ foreach ($Service2Check in $using:CheckServices){
     $ServicesChecked += New-Object PSObject -Property $ServiceResult
 }
 $DC_HealthInfo.CheckedServices = $ServicesChecked
+$DC_HealthInfo.ClientIPsMissingSubnets = @(Get-Content "$($env:SystemRoot)\debug\netlogon.log" | ForEach-Object { (($_ -split " ")[-1]) })
 New-Object PSObject -Property $DC_HealthInfo
 '@
 
@@ -429,6 +430,7 @@ Log2File -log $LogFile -text "Generating reports"
 $CheckedFiles = @()
 $CheckedServices = @()
 $FailedServices = 0
+$MissingSubnetsIPArrayList = New-Object System.Collections.ArrayList
 foreach ($result in $results){
     $DCDiagErrSum += $result.DCDiagErr
     $SysVolReplErrorSum += $result.SysVolReplErrorCount
@@ -479,6 +481,7 @@ foreach ($result in $results){
         $CheckedServices += $ServiceCheckStatus
         if ($Service.CheckResult -eq "Error"){$FailedServices++} 
     }
+    $MissingSubnetsIPArrayList.AddRange($result.ClientIPsMissingSubnets)
 }
 [int64]$DSASizeAverage = $DSASize / $results.count
 $RunResult.DSASize = $DSASizeAverage
@@ -489,6 +492,8 @@ $CheckedFiles | Export-Csv -Path "$LogFilePath\$rundatestring-FileVersionCheck.c
 $dfsrAdminHealth | Export-Csv -Path "$LogFilePath\$rundatestring-DFSRAdminHealthCheckErrors.csv" -NoTypeInformation -Delimiter ';' -Force
 $CheckedServices | Export-Csv -Path "$LogFilePath\$rundatestring-ServiceCheck.csv" -NoTypeInformation -Delimiter ';' -Force
 $DNSRegistrationErrors | Export-Csv -Path "$LogFilePath\$rundatestring-DNSRegistrationErrors.csv" -NoTypeInformation -Delimiter ';' -Force
+$MissingSubnetsIPs = $MissingSubnetsIPArrayList |Sort-Object -Unique | Out-File "$LogFilePath\$rundatestring-ClientsWithoutSubnet.txt"
+$MissingSubnetsIPs | %{$_.substring(0,($_.lastindexof(".")))} |Sort-Object -Unique | Out-File "$LogFilePath\$rundatestring-MissingSubnets.txt"
 #endregion
 #endregion
 
@@ -550,6 +555,7 @@ $MailBody = $MailBody.Replace("___RIDSREMAINING___",$ridObject.RIDsRemaining)
 $MailBody = $MailBody.Replace("___DCDIAGERR___",$DCDiagErrSum)
 $MailBody = $MailBody.Replace("___SYSVOLREPLERR___",$SysVolReplErrorSum)
 $MailBody = $MailBody.Replace("___UXSCOUNT___",$UnexpectedShutdownSum)
+$MailBody = $MailBody.Replace("___MSNCOUNT___",$MissingSubnetsIPs.Count)
 $MailBody = $MailBody.Replace("___REPADMINERR___",$RepAdminErrSum)
 $MailBody = $MailBody.Replace("___REPADMINLIST___",$RepAdminErrHTML)
 $MailBody = $MailBody.Replace("___DCDIAGLIST___",$DCDiagErrHTML)
@@ -588,6 +594,10 @@ switch ($SysVolReplErrorSum){
 switch ($UnexpectedShutdownSum){
     {$_ -gt 0} {$MailBody = $MailBody.Replace("___UXSCOLOR___",$HTMLRed); break}
     default {$MailBody = $MailBody.Replace("___UXSCOLOR___",$HTMLGreen)}
+}
+switch ($MissingSubnetsIPArrayList.Count){
+    {$_ -gt 0} {$MailBody = $MailBody.Replace("___MSNCOLOR___",$HTMLYellow); break}
+    default {$MailBody = $MailBody.Replace("___MSNCOLOR___",$HTMLGreen)}
 }
 switch ($RepAdminErrSum){
     {$_ -gt 4} {$MailBody = $MailBody.Replace("___RACOLOR___",$HTMLRed); break}
