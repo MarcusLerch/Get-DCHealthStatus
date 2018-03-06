@@ -29,7 +29,7 @@ param(
 
 #endregion
 
-[String]$ScriptVersion = "2.5.0"
+[String]$ScriptVersion = "3.0.0"
 
 #region Functions
 function Log2File{
