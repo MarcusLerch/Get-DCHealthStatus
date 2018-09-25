@@ -40,7 +40,7 @@ function Log2File{
 	"$(Get-Date -Format "yyyyMMdd-HH:mm:ss"):`t$text" | Out-File -FilePath $log -Append
 }
 
-function Check-DNSEntries {
+function Test-DNSEntries {
     [CmdletBinding(DefaultParametersetName="LocalCheck")] 
 	param(
 		[Parameter(ParametersetName="ProvidedList", Mandatory=$true)]
@@ -261,11 +261,7 @@ Log2File -log $LogFile -text "Starting checks"
 #region get forest and domain infos
 Log2File -log $LogFile -text "Reading Forest and Domain Information"
 $ADForest = Get-ADForest -Server $Domain2Check
-$ADForestDomains = $ADForest.Domains
 $ADInfo = Get-ADDomain -Server $Domain2Check
-$ADDomainDNSRoot = $ADInfo.DNSRoot
-$ADDomainReadOnlyReplicaDirectoryServers = $ADInfo.ReadOnlyReplicaDirectoryServers
-$ADDomainReplicaDirectoryServers = $ADInfo.ReplicaDirectoryServers
 #endregion
 
 #region get fsmo role owners
@@ -273,8 +269,6 @@ Log2File -log $LogFile -text "Reading FSMO Role Owners"
 $ADForestDomainNamingMaster = $ADForest.DomainNamingMaster
 $ADForestSchemaMaster = $ADForest.SchemaMaster
 $ADDomainPDCEmulator = $ADInfo.PDCEmulator
-$ADDomainRIDMaster = $ADInfo.RIDMaster
-$ADDomainInfrastructureMaster = $ADInfo.InfrastructureMaster
 #endregion
 
 #region Get Rid Object
@@ -405,7 +399,7 @@ $results = @(Invoke-Command -ComputerName $DCList -ScriptBlock $SB)
 Log2File -log $LogFile -text "Starting DNS Registrations Check"
 $DNSRegistrationErrors = @()
 foreach ($DC in $DCList){
-    $DNSRegistrationErrors += Check-DNSEntries -SourceServer $DC | Where-Object {!($_.IsRegistered -and $_.IsCorrect)}
+    $DNSRegistrationErrors += Test-DNSEntries -SourceServer $DC | Where-Object {!($_.IsRegistered -and $_.IsCorrect)}
 }
 
 #endregion
@@ -487,13 +481,13 @@ foreach ($result in $results){
 $RunResult.DSASize = $DSASizeAverage
 
 Log2File -log $LogFile -text "Exporting reports"
-$results | Select-Object -Property * -ExcludeProperty DCDiag,RepAdmin,PSComputerName,RunspaceId,PSShowComputerName,CheckedFiles | Export-Csv -Path "$LogFilePath\$rundatestring-DCHealth.csv" -NoTypeInformation -Delimiter ";" -Force
+$results | Select-Object -Property * -ExcludeProperty DCDiag,RepAdmin,PSComputerName,RunspaceId,PSShowComputerName,CheckedFiles,ClientIPsMissingSubnets | Export-Csv -Path "$LogFilePath\$rundatestring-DCHealth.csv" -NoTypeInformation -Delimiter ";" -Force
 $CheckedFiles | Export-Csv -Path "$LogFilePath\$rundatestring-FileVersionCheck.csv" -NoTypeInformation -Delimiter ';' -Force
 $dfsrAdminHealth | Export-Csv -Path "$LogFilePath\$rundatestring-DFSRAdminHealthCheckErrors.csv" -NoTypeInformation -Delimiter ';' -Force
 $CheckedServices | Export-Csv -Path "$LogFilePath\$rundatestring-ServiceCheck.csv" -NoTypeInformation -Delimiter ';' -Force
 $DNSRegistrationErrors | Export-Csv -Path "$LogFilePath\$rundatestring-DNSRegistrationErrors.csv" -NoTypeInformation -Delimiter ';' -Force
 $MissingSubnetsIPs = $MissingSubnetsIPArrayList |Sort-Object -Unique | Out-File "$LogFilePath\$rundatestring-ClientsWithoutSubnet.txt"
-$MissingSubnetsIPs | %{$_.substring(0,($_.lastindexof(".")))} |Sort-Object -Unique | Out-File "$LogFilePath\$rundatestring-MissingSubnets.txt"
+$MissingSubnetsIPs | ForEach-Object {$_.substring(0,($_.lastindexof(".")))} |Sort-Object -Unique | Out-File "$LogFilePath\$rundatestring-MissingSubnets.txt"
 #endregion
 #endregion
 
@@ -630,7 +624,7 @@ switch ($FailedServices){
     default {$MailBody = $MailBody.Replace("___ADDSCOLOR___",$HTMLGreen)}
 }
 
-$Attachements = Get-ChildItem -Path $LogFilePath | ForEach-Object {$_.FullName}
+$Attachements = Get-ChildItem -Path $LogFilePath | Where-Object {$_.Name -notlike "*-Simplebind.csv" -or $_.Name -notlike "*-MissingSubnets.txt"} | ForEach-Object {$_.FullName}
 if($sendMail){
 Log2File -log $LogFile -text "Sending mail"
 Send-MailMessage -BodyAsHtml -Body $MailBody `
