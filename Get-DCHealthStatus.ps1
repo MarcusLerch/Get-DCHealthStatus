@@ -625,7 +625,7 @@ switch ($FailedServices){
     default {$MailBody = $MailBody.Replace("___ADDSCOLOR___",$HTMLGreen)}
 }
 
-$Attachements = Get-ChildItem -Path $LogFilePath | Where-Object {$_.Name -notlike "*-Simplebind.csv"} | ForEach-Object {$_.FullName}
+$Attachements = Get-ChildItem -Path $LogFilePath | Where-Object {$_.Name -notlike "*-Simplebinds.csv"} | ForEach-Object {$_.FullName}
 if($sendMail){
 Log2File -log $LogFile -text "Sending mail"
 Send-MailMessage -BodyAsHtml -Body $MailBody `
