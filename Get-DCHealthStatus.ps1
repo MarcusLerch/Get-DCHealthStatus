@@ -29,7 +29,7 @@ param(
 
 #endregion
 
-[String]$ScriptVersion = "3.0.1"
+[String]$ScriptVersion = "3.1.0"
 
 #region Functions
 function Log2File{
@@ -368,6 +368,7 @@ foreach ($Service2Check in $using:CheckServices){
 }
 $DC_HealthInfo.CheckedServices = $ServicesChecked
 $DC_HealthInfo.ClientIPsMissingSubnets = @(Get-Content "$($env:SystemRoot)\debug\netlogon.log" | Select-String -Pattern "NO_CLIENT_SITE:" | ForEach-Object { (($_ -split " ")[-1]) })
+$DC_HealthInfo.ExpiringCertificates = @(Get-ChildItem Cert:\LocalMachine\My | Select-Object Subject,NotAfter | Where-Object {($_.NotAfter - (Get-Date)) -lt (New-TimeSpan -Days 30)} )
 New-Object PSObject -Property $DC_HealthInfo
 '@
 
@@ -476,6 +477,7 @@ foreach ($result in $results){
         if ($Service.CheckResult -eq "Error"){$FailedServices++} 
     }
     $MissingSubnetsIPArrayList.AddRange($result.ClientIPsMissingSubnets)
+    $ExpiringCertificates = $result.ExpiringCertificates
 }
 [int64]$DSASizeAverage = $DSASize / $results.count
 $RunResult.DSASize = $DSASizeAverage
@@ -489,6 +491,7 @@ $DNSRegistrationErrors | Export-Csv -Path "$LogFilePath\$rundatestring-DNSRegist
 $MissingSubnetsIPs = $MissingSubnetsIPArrayList |Sort-Object -Unique 
 $MissingSubnetsIPs | Out-File "$LogFilePath\$rundatestring-ClientsWithoutSubnet.txt"
 $MissingSubnetsIPs | ForEach-Object {$_.substring(0,($_.lastindexof(".")))} |Sort-Object -Unique | Out-File "$LogFilePath\$rundatestring-MissingSubnets.txt"
+$ExpiringCertificates | Export-Csv -Path "$LogFilePath\$rundatestring-ExpiringCertificates.csv" -NoTypeInformation -Delimiter ';' -Force
 #endregion
 #endregion
 
@@ -551,6 +554,7 @@ $MailBody = $MailBody.Replace("___DCDIAGERR___",$DCDiagErrSum)
 $MailBody = $MailBody.Replace("___SYSVOLREPLERR___",$SysVolReplErrorSum)
 $MailBody = $MailBody.Replace("___UXSCOUNT___",$UnexpectedShutdownSum)
 $MailBody = $MailBody.Replace("___MSNCOUNT___",$MissingSubnetsIPs.Count)
+$MailBody = $MailBody.Replace("___ECCOUNT___",$ExpiringCertificates.Count)
 $MailBody = $MailBody.Replace("___REPADMINERR___",$RepAdminErrSum)
 $MailBody = $MailBody.Replace("___REPADMINLIST___",$RepAdminErrHTML)
 $MailBody = $MailBody.Replace("___DCDIAGLIST___",$DCDiagErrHTML)
@@ -577,11 +581,22 @@ else{
 $MailBody = $MailBody.Replace("___LSBCOUNT___","Not checked")
 $MailBody = $MailBody.Replace("___LSBCOLOR___",$HTMLGreen)
 }
+switch ($MissingSubnetsIPs.count){
+    {$_ -gt 4} {$MailBody = $MailBody.Replace("___MSNCOLOR___",$HTMLRed); break}
+    {$_ -gt 0} {$MailBody = $MailBody.Replace("___MSNCOLOR___",$HTMLYellow); break}
+    default {$MailBody = $MailBody.Replace("___MSNCOLOR___",$HTMLGreen)}
+}
+switch ($ExpiringCertificates.count){
+    {$_ -gt 4} {$MailBody = $MailBody.Replace("___ECCOLOR___",$HTMLRed); break}
+    {$_ -gt 0} {$MailBody = $MailBody.Replace("___ECCOLOR___",$HTMLYellow); break}
+    default {$MailBody = $MailBody.Replace("___ECCOLOR___",$HTMLGreen)}
+}
 switch ($UnreachbleDCs.count){
     {$_ -gt 4} {$MailBody = $MailBody.Replace("___URCOLOR___",$HTMLRed); break}
     {$_ -gt 0} {$MailBody = $MailBody.Replace("___URCOLOR___",$HTMLYellow); break}
     default {$MailBody = $MailBody.Replace("___URCOLOR___",$HTMLGreen)}
 }
+
 switch ($SysVolReplErrorSum){
     {$_ -gt 0} {$MailBody = $MailBody.Replace("___SVCOLOR___",$HTMLRed); break}
     default {$MailBody = $MailBody.Replace("___SVCOLOR___",$HTMLGreen)}
