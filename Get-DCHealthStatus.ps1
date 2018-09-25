@@ -29,7 +29,7 @@ param(
 
 #endregion
 
-[String]$ScriptVersion = "3.0.0"
+[String]$ScriptVersion = "3.0.1"
 
 #region Functions
 function Log2File{
@@ -367,7 +367,7 @@ foreach ($Service2Check in $using:CheckServices){
     $ServicesChecked += New-Object PSObject -Property $ServiceResult
 }
 $DC_HealthInfo.CheckedServices = $ServicesChecked
-$DC_HealthInfo.ClientIPsMissingSubnets = @(Get-Content "$($env:SystemRoot)\debug\netlogon.log" | ForEach-Object { (($_ -split " ")[-1]) })
+$DC_HealthInfo.ClientIPsMissingSubnets = @(Get-Content "$($env:SystemRoot)\debug\netlogon.log" | Select-String -Pattern "NO_CLIENT_SITE:" | ForEach-Object { (($_ -split " ")[-1]) })
 New-Object PSObject -Property $DC_HealthInfo
 '@
 
@@ -486,7 +486,8 @@ $CheckedFiles | Export-Csv -Path "$LogFilePath\$rundatestring-FileVersionCheck.c
 $dfsrAdminHealth | Export-Csv -Path "$LogFilePath\$rundatestring-DFSRAdminHealthCheckErrors.csv" -NoTypeInformation -Delimiter ';' -Force
 $CheckedServices | Export-Csv -Path "$LogFilePath\$rundatestring-ServiceCheck.csv" -NoTypeInformation -Delimiter ';' -Force
 $DNSRegistrationErrors | Export-Csv -Path "$LogFilePath\$rundatestring-DNSRegistrationErrors.csv" -NoTypeInformation -Delimiter ';' -Force
-$MissingSubnetsIPs = $MissingSubnetsIPArrayList |Sort-Object -Unique | Out-File "$LogFilePath\$rundatestring-ClientsWithoutSubnet.txt"
+$MissingSubnetsIPs = $MissingSubnetsIPArrayList |Sort-Object -Unique 
+$MissingSubnetsIPs | Out-File "$LogFilePath\$rundatestring-ClientsWithoutSubnet.txt"
 $MissingSubnetsIPs | ForEach-Object {$_.substring(0,($_.lastindexof(".")))} |Sort-Object -Unique | Out-File "$LogFilePath\$rundatestring-MissingSubnets.txt"
 #endregion
 #endregion
@@ -624,7 +625,7 @@ switch ($FailedServices){
     default {$MailBody = $MailBody.Replace("___ADDSCOLOR___",$HTMLGreen)}
 }
 
-$Attachements = Get-ChildItem -Path $LogFilePath | Where-Object {$_.Name -notlike "*-Simplebind.csv" -or $_.Name -notlike "*-MissingSubnets.txt"} | ForEach-Object {$_.FullName}
+$Attachements = Get-ChildItem -Path $LogFilePath | Where-Object {$_.Name -notlike "*-Simplebind.csv"} | ForEach-Object {$_.FullName}
 if($sendMail){
 Log2File -log $LogFile -text "Sending mail"
 Send-MailMessage -BodyAsHtml -Body $MailBody `
