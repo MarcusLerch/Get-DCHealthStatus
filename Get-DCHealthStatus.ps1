@@ -29,7 +29,7 @@ param(
 
 #endregion
 
-[String]$ScriptVersion = "3.1.0"
+[String]$ScriptVersion = "3.2.0"
 
 #region Functions
 function Log2File{
@@ -399,8 +399,11 @@ $results = @(Invoke-Command -ComputerName $DCList -ScriptBlock $SB)
 #region DNS Registration Check
 Log2File -log $LogFile -text "Starting DNS Registrations Check"
 $DNSRegistrationErrors = @()
+$DNSRegistrationWarnings = @()
 foreach ($DC in $DCList){
-    $DNSRegistrationErrors += Test-DNSEntries -SourceServer $DC | Where-Object {!($_.IsRegistered -and $_.IsCorrect)}
+    $TestedDNSEntries = Test-DNSEntries -SourceServer $DC
+    $DNSRegistrationErrors += $TestedDNSEntries | Where-Object {!($_.IsRegistered)}
+    $DNSRegistrationWarnings += $TestedDNSEntries | Where-Object {!($_.IsCorrect)}
 }
 
 #endregion
@@ -488,6 +491,7 @@ $CheckedFiles | Export-Csv -Path "$LogFilePath\$rundatestring-FileVersionCheck.c
 $dfsrAdminHealth | Export-Csv -Path "$LogFilePath\$rundatestring-DFSRAdminHealthCheckErrors.csv" -NoTypeInformation -Delimiter ';' -Force
 $CheckedServices | Export-Csv -Path "$LogFilePath\$rundatestring-ServiceCheck.csv" -NoTypeInformation -Delimiter ';' -Force
 $DNSRegistrationErrors | Export-Csv -Path "$LogFilePath\$rundatestring-DNSRegistrationErrors.csv" -NoTypeInformation -Delimiter ';' -Force
+$DNSRegistrationWarnings | Export-Csv -Path "$LogFilePath\$rundatestring-DNSRegistrationWarnings.csv" -NoTypeInformation -Delimiter ';' -Force
 $MissingSubnetsIPs = $MissingSubnetsIPArrayList |Sort-Object -Unique 
 $MissingSubnetsIPs | Out-File "$LogFilePath\$rundatestring-ClientsWithoutSubnet.txt"
 $MissingSubnetsIPs | ForEach-Object {$_.substring(0,($_.lastindexof(".")))} |Sort-Object -Unique | Out-File "$LogFilePath\$rundatestring-MissingSubnets.txt"
@@ -532,8 +536,12 @@ if ($DCDiagErrSum){
 
 $DCDNSErrHTML = ''
 if ($DNSRegistrationErrors){
-    $DCDNSErrHTML = ("<p>Es wurden {0} fehlerhafte DNS Registrierungen gefunden</p>" -f $DNSRegistrationErrors.Count)
+    $DCDNSErrHTML += ("<p>Es wurden {0} fehlende DNS Registrierungen gefunden</p>" -f $DNSRegistrationErrors.Count)
 }
+if ($DNSRegistrationWarnings){
+    $DCDNSErrHTML += ("<p>Es wurden {0} fehlerhaft DNS Registrierungen gefunden</p>" -f $DNSRegistrationWarnings.Count)
+}
+
 
 Log2File -log $LogFile -text "Creating mail"
 [string]$MailBody = Get-Content -Path "$Scriptpath\MailBody.html"
